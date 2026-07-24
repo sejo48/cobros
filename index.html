@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Control de Entradas y Pagos</title>
+  <style>
+    :root {
+      --primary: #2563eb;
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --text: #1e293b;
+      --border: #e2e8f0;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 24px;
+    }
+
+    /* Resumen Global */
+    .dashboard {
+      background: var(--card);
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-around;
+      gap: 20px;
+      margin-bottom: 24px;
+    }
+
+    .total-box {
+      text-align: center;
+    }
+
+    .total-box h2 {
+      margin: 0;
+      font-size: 0.9rem;
+      color: #64748b;
+      text-transform: uppercase;
+    }
+
+    .total-box .monto {
+      font-size: 2rem;
+      font-weight: bold;
+      color: #16a34a;
+      margin: 8px 0 0 0;
+    }
+
+    /* Canvas para Gráfico */
+    canvas {
+      max-width: 280px;
+      max-height: 160px;
+    }
+
+    /* Menú de Pestañas */
+    .tabs {
+      display: flex;
+      gap: 8px;
+      border-bottom: 2px solid var(--border);
+      margin-bottom: 20px;
+    }
+
+    .tab-btn {
+      padding: 10px 16px;
+      border: none;
+      background: none;
+      font-weight: 600;
+      color: #64748b;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -2px;
+    }
+
+    .tab-btn.active {
+      color: var(--primary);
+      border-bottom-color: var(--primary);
+    }
+
+    /* Secciones */
+    .tab-content {
+      display: none;
+      background: var(--card);
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    .form-group {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 15px;
+    }
+
+    input, button {
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+    }
+
+    button.add-btn {
+      background: var(--primary);
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+
+    ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    li {
+      display: flex;
+      justify-content: space-between;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <header>
+      <h1>Control General de Entradas</h1>
+    </header>
+
+    <!-- Resumen y Gráfico Canvas -->
+    <div class="dashboard">
+      <div class="total-box">
+        <h2>Total Entradas</h2>
+        <div class="monto" id="total-general">₡0.00</div>
+      </div>
+      <canvas id="graficoEntradas" width="280" height="160"></canvas>
+    </div>
+
+    <!-- Navegación por Pestañas -->
+    <div class="tabs">
+      <button class="tab-btn active" onclick="cambiarPestaña('transporte')">Transporte</button>
+      <button class="tab-btn" onclick="cambiarPestaña('vivienda')">Vivienda</button>
+      <button class="tab-btn" onclick="cambiarPestaña('deudores')">Deudores</button>
+    </div>
+
+    <!-- Sección 1: Transporte -->
+    <div id="transporte" class="tab-content active">
+      <h3>Pagos de Transporte</h3>
+      <div class="form-group">
+        <input type="text" id="desc-transporte" placeholder="Descripción (ej. Ruta 1)">
+        <input type="number" id="monto-transporte" placeholder="Monto (₡)">
+        <button class="add-btn" onclick="agregarEntrada('transporte')">Agregar</button>
+      </div>
+      <ul id="lista-transporte"></ul>
+    </div>
+
+    <!-- Sección 2: Vivienda -->
+    <div id="vivienda" class="tab-content">
+      <h3>Alquileres de Casas</h3>
+      <div class="form-group">
+        <input type="text" id="desc-vivienda" placeholder="Casa / Inquilino">
+        <input type="number" id="monto-vivienda" placeholder="Monto (₡)">
+        <button class="add-btn" onclick="agregarEntrada('vivienda')">Agregar</button>
+      </div>
+      <ul id="lista-vivienda"></ul>
+    </div>
+
+    <!-- Sección 3: Deudores -->
+    <div id="deudores" class="tab-content">
+      <h3>Deudores Varios</h3>
+      <div class="form-group">
+        <input type="text" id="desc-deudores" placeholder="Nombre del deudor">
+        <input type="number" id="monto-deudores" placeholder="Monto (₡)">
+        <button class="add-btn" onclick="agregarEntrada('deudores')">Agregar</button>
+      </div>
+      <ul id="lista-deudores"></ul>
+    </div>
+  </div>
+
+  <script>
+    // Datos almacenados por categoría
+    let datos = {
+      transporte: JSON.parse(localStorage.getItem('entradas_transporte')) || [],
+      vivienda: JSON.parse(localStorage.getItem('entradas_vivienda')) || [],
+      deudores: JSON.parse(localStorage.getItem('entradas_deudores')) || []
+    };
+
+    function cambiarPestaña(categoria) {
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+
+      event.target.classList.add('active');
+      document.getElementById(categoria).classList.add('active');
+    }
+
+    function agregarEntrada(categoria) {
+      const descInput = document.getElementById(`desc-${categoria}`);
+      const montoInput = document.getElementById(`monto-${categoria}`);
+
+      const desc = descInput.value.trim();
+      const monto = parseFloat(montoInput.value);
+
+      if (!desc || isNaN(monto) || monto <= 0) return;
+
+      datos[categoria].push({ desc, monto });
+      localStorage.setItem(`entradas_${categoria}`, JSON.stringify(datos[categoria]));
+
+      descInput.value = '';
+      montoInput.value = '';
+
+      actualizarVista();
+    }
+
+    function renderizarLista(categoria) {
+      const ul = document.getElementById(`lista-${categoria}`);
+      ul.innerHTML = '';
+
+      datos[categoria].forEach((item, index) => {
+        const li = document.createElement('li');
+        li.innerHTML = `
+          <span>${item.desc}</span>
+          <strong>₡${item.monto.toLocaleString('es-CR', {minimumFractionDigits: 2})}</strong>
+        `;
+        ul.appendChild(li);
+      });
+    }
+
+    function obtenerSumas() {
+      const sumaTransporte = datos.transporte.reduce((acc, cur) => acc + cur.monto, 0);
+      const sumaVivienda = datos.vivienda.reduce((acc, cur) => acc + cur.monto, 0);
+      const sumaDeudores = datos.deudores.reduce((acc, cur) => acc + cur.monto, 0);
+
+      return {
+        transporte: sumaTransporte,
+        vivienda: sumaVivienda,
+        deudores: sumaDeudores,
+        total: sumaTransporte + sumaVivienda + sumaDeudores
+      };
+    }
+
+    function actualizarVista() {
+      renderizarLista('transporte');
+      renderizarLista('vivienda');
+      renderizarLista('deudores');
+
+      const sumas = obtenerSumas();
+      document.getElementById('total-general').textContent = `₡${sumas.total.toLocaleString('es-CR', {minimumFractionDigits: 2})}`;
+
+      dibujarGraficoCanvas(sumas);
+    }
+
+    // Dibujado del gráfico en Canvas
+    function dibujarGraficoCanvas(sumas) {
+      const canvas = document.getElementById('graficoEntradas');
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      const total = sumas.total;
+      if (total === 0) {
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '14px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('Sin datos registrados', canvas.width / 2, canvas.height / 2);
+        return;
+      }
+
+      const categorias = [
+        { nombre: 'Transporte', monto: sumas.transporte, color: '#2563eb' },
+        { nombre: 'Vivienda', monto: sumas.vivienda, color: '#16a34a' },
+        { nombre: 'Deudores', monto: sumas.deudores, color: '#f59e0b' }
+      ];
+
+      let inicioAngulo = 0;
+      const centerX = 80;
+      const centerY = canvas.height / 2;
+      const radius = 60;
+
+      // Dibujar gráfico circular (Pie chart)
+      categorias.forEach(cat => {
+        if (cat.monto === 0) return;
+
+        const angulo = (cat.monto / total) * 2 * Math.PI;
+
+        ctx.beginPath();
+        ctx.moveTo(centerX, centerY);
+        ctx.arc(centerX, centerY, radius, inicioAngulo, inicioAngulo + angulo);
+        ctx.closePath();
+        ctx.fillStyle = cat.color;
+        ctx.fill();
+
+        inicioAngulo += angulo;
+      });
+
+      // Dibujar Leyenda
+      let leyendaY = 40;
+      categorias.forEach(cat => {
+        ctx.fillStyle = cat.color;
+        ctx.fillRect(160, leyendaY, 12, 12);
+
+        ctx.fillStyle = '#1e293b';
+        ctx.font = '12px sans-serif';
+        ctx.textAlign = 'left';
+        
+        const porcentaje = Math.round((cat.monto / total) * 100) || 0;
+        ctx.fillText(`${cat.nombre} (${porcentaje}%)`, 180, leyendaY + 10);
+
+        leyendaY += 30;
+      });
+    }
+
+    // Carga inicial
+    actualizarVista();
+  </script>
+</body>
+</html>
